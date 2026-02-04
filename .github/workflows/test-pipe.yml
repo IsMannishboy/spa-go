@@ -1,0 +1,6 @@
+//here i will make a test pipeline which builds all images and run a test comand in those ones where changes are 
+// 1 step : run vm on ubuntu
+// 2: copy github repo
+// 3: build all images
+// 4: run test commands where it needed
+// 5:if there arent any error a new images can be uploaded on docker hub
