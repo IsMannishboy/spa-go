@@ -7,7 +7,11 @@ import (
 	redis "github.com/redis/go-redis/v9"
 )
 
-func GetRedisConn(Server *c.Server) *redis.Client {
+type Cash struct {
+	Rdb *redis.Client
+}
+
+func GetRedisConn(Server *c.Server) *Cash {
 	rdb := redis.NewClient(&redis.Options{
 		Addr:         Server.Redis.Host,
 		DialTimeout:  time.Duration(Server.Redis.DialTimeout) * time.Second,
@@ -25,6 +29,6 @@ func GetRedisConn(Server *c.Server) *redis.Client {
 	if PingError != nil {
 		panic(PingError)
 	}
-	return rdb
+	return &Cash{rdb}
 
 }

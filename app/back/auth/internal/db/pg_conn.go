@@ -12,9 +12,9 @@ import (
 )
 
 type DB struct {
-	db      *sql.DB
+	DB      *sql.DB
 	Timeout time.Duration
-	Models  map[string]*m.Model
+	Models  map[string]m.Model
 }
 
 func GetPostgresConn(conf *c.Server) *DB {
@@ -29,6 +29,7 @@ func GetPostgresConn(conf *c.Server) *DB {
 		conf.Postgres.SSLMode,
 	)
 	db, err := sql.Open("postgres", connStr)
+
 	if err != nil {
 		panic(err)
 	}
@@ -43,7 +44,6 @@ func GetPostgresConn(conf *c.Server) *DB {
 		panic(PingError)
 	}
 	Models := make(map[string]m.Model)
-	var NewUsersModel = &m.UserModel{}
-	Models["users"] = NewUsersModel
+	Models["users"] = &m.UserModel{}
 	return &DB{db, time.Duration(conf.Postgres.DialTimeout), Models}
 }

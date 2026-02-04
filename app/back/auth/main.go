@@ -1,4 +1,4 @@
-package auth
+package main
 
 import (
 	a "auth/internal/auth"
@@ -16,8 +16,12 @@ func main() {
 	Server := c.GetConf()
 	// db + redis
 	db := DB.GetPostgresConn(Server)
-	rdb := R.GetRedisConn(Server)
+	cash := R.GetRedisConn(Server)
 	// auth structs
 	var CSRF = new(a.CSRF)
-	http.HandleFunc("/auth/login", h.LoginHandler(CSRF, db, rdb))
+	var SESSIONS = a.NewStruct(cash.Rdb)
+
+	http.HandleFunc("/auth/login", h.LoginHandler(CSRF, db, cash, SESSIONS))
+	http.HandleFunc("/auth/register", h.RegisterHandler(CSRF, db, cash, SESSIONS))
+	http.ListenAndServe("8080", nil)
 }
