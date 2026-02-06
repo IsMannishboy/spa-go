@@ -64,7 +64,8 @@ func (c *CSRF) CheckToken(token string, key string) error {
 }
 func (c *CSRF) PostRequest(w http.ResponseWriter, r *http.Request) int {
 	csrf := r.Header.Get("CSRF")
-	cookie, err := r.Cookie("CSRF_KEY")
+	fmt.Println("token check:", csrf)
+	cookie, err := r.Cookie("KEY")
 	if err != nil {
 		fmt.Println("cookie error:", err.Error())
 		http.Error(w, err.Error(), http.StatusForbidden)
@@ -74,7 +75,7 @@ func (c *CSRF) PostRequest(w http.ResponseWriter, r *http.Request) int {
 	CSRFError := c.CheckToken(csrf, key)
 	if CSRFError != nil {
 		fmt.Println("csrf error:", CSRFError)
-		http.Error(w, err.Error(), http.StatusForbidden)
+		http.Error(w, CSRFError.Error(), http.StatusForbidden)
 		return 1
 	}
 	return 0

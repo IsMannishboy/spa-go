@@ -136,3 +136,26 @@ func RegisterHandler(CSRF *a.CSRF, db *d.DB, cash *r.Cash, SESSIONS *a.SESSIONS)
 
 	}
 }
+func GetCSRF(CSRF *a.CSRF) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		token, key, err := CSRF.MakeTokenAndKey()
+		if err != nil {
+			fmt.Println(err)
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		fmt.Println("token:", token)
+		fmt.Println("key:", key)
+		cookie := &http.Cookie{
+			Name:     "KEY",
+			Value:    key,
+			Secure:   false,
+			HttpOnly: true,
+			SameSite: http.SameSiteStrictMode,
+			Path:     "/",
+		}
+		http.SetCookie(w, cookie)
+		w.Header().Set("CSRF", token)
+		w.Write([]byte("take your token"))
+	}
+}

@@ -6,6 +6,7 @@ import (
 	DB "auth/internal/db"
 	h "auth/internal/handlers"
 	R "auth/internal/redis"
+	"fmt"
 	"net/http"
 
 	_ "github.com/lib/pq"
@@ -23,5 +24,7 @@ func main() {
 
 	http.HandleFunc("/auth/login", h.LoginHandler(CSRF, db, cash, SESSIONS))
 	http.HandleFunc("/auth/register", h.RegisterHandler(CSRF, db, cash, SESSIONS))
-	http.ListenAndServe("8080", nil)
+	http.HandleFunc("/auth/csrf", h.GetCSRF(CSRF))
+	fmt.Println("server is running ")
+	fmt.Println(http.ListenAndServe(Server.Addr, nil))
 }

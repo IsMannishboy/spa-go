@@ -20,7 +20,7 @@ type DB struct {
 func GetPostgresConn(conf *c.Server) *DB {
 
 	connStr := fmt.Sprintf(
-		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		conf.Postgres.Host,
 		conf.Postgres.Port,
 		conf.Postgres.User,

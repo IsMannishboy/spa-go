@@ -22,18 +22,18 @@ func (u *UserModel) FindOne(ctx context.Context, params map[string]string, db *s
 	}
 	var conditions []string
 	for key, value := range params {
-		conditions = append(conditions, fmt.Sprintf("%s = %s", key, value))
+		conditions = append(conditions, fmt.Sprintf("%s = '%s'", key, value))
 	}
 	var args = strings.Join(conditions, "AND")
 	query := "select * from users where " + args
+	fmt.Println("query:", query)
 	var User s.User
-	newctx, c := context.WithTimeout(ctx, timeout)
+	newctx, c := context.WithTimeout(ctx, timeout*time.Second)
 	defer c()
 	err := db.QueryRowContext(newctx, query).Scan(&User)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return User, err
-		}
+		fmt.Println(err)
+		fmt.Println(err.Error() == sql.ErrNoRows.Error())
 		return User, err
 	}
 	return User, nil
