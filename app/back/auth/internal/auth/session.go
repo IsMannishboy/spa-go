@@ -16,6 +16,63 @@ type SESSIONS struct {
 	rdb *redis.Client
 }
 
+func (s *SESSIONS) FindMainSession(session_id string) (structs.MainSession, error) {
+	var MainSessionValue structs.MainSessionValue
+	var MainSession structs.MainSession
+	stored, err := s.rdb.Get(context.Background(), session_id).Result()
+	if err != nil {
+		return MainSession, err
+	}
+	bytes, err := base64.RawURLEncoding.DecodeString(stored)
+	if err != nil {
+		return MainSession, err
+	}
+	err = json.Unmarshal(bytes, &MainSessionValue)
+	if err != nil {
+		return MainSession, err
+	}
+	MainSession.Value = MainSessionValue
+	return MainSession, nil
+}
+func (s *SESSIONS) UpdateMainSession(MainSession *structs.MainSession, user_id string, user_session_id string) error {
+	MainSession.Value.UserSessions[user_id] = user_session_id
+	bytes, err := json.Marshal(MainSession.Value)
+	if err != nil {
+		return err
+	}
+	str_value := base64.RawURLEncoding.EncodeToString(bytes)
+	_, err = s.rdb.Set(context.Background(), MainSession.Id, str_value, time.Hour*24).Result()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+func (s *SESSIONS) CreateMainSession(user_id string) (structs.MainSession, error) {
+	//id
+	var MainSession structs.MainSession
+	MainSessionId := make([]byte, 20)
+	_, err := rand.Read(MainSessionId)
+	if err != nil {
+		return MainSession, err
+	}
+	MainSessionIdStr := base64.RawURLEncoding.EncodeToString(MainSessionId)
+
+	var MainSessionValue structs.MainSessionValue
+	MainSession.Value = MainSessionValue
+	var UserSessions = make(map[string]string)
+	MainSession.Value.UserSessions = UserSessions
+	MainSession.Value.Exp = time.Now().Add(time.Hour * 24)
+	MainSessionByte, err := json.Marshal(MainSession.Id)
+	str_value := base64.RawURLEncoding.EncodeToString(MainSessionByte)
+	if err != nil {
+		return MainSession, err
+	}
+	_, err = s.rdb.Set(context.Background(), MainSessionIdStr, str_value, 24*time.Hour).Result()
+	if err != nil {
+		return MainSession, err
+	}
+	return MainSession, nil
+}
 func (s *SESSIONS) CreateSession(ctx context.Context, user_id string) (string, error) {
 	var session structs.Session
 	var newctx context.Context = nil

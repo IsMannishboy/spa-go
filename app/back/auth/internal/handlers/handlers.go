@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"encoding/json"
 	"io"
@@ -62,24 +63,66 @@ func LoginHandler(CSRF *a.CSRF, db *d.DB, cash *r.Cash, SESSIONS *a.SESSIONS) ht
 			http.Error(w, err.Error(), 401)
 			return
 		}
-		session_id, err := SESSIONS.CreateSession(context.Background(), UserOk.Id)
-		if err != nil {
-			fmt.Println(err)
-			http.Error(w, err.Error(), 500)
-			return
+
+		session_cookie, err := r.Cookie("session")
+		switch err {
+		case nil:
+			session_id := session_cookie.Value
+			MainSession, err := SESSIONS.FindMainSession(session_id)
+			if err != nil {
+				fmt.Println("find session error", err)
+				http.Error(w, err.Error(), 500)
+				return
+			}
+			user_session_id, err := SESSIONS.CreateSession(nil, UserOk.Id)
+			if err != nil {
+				fmt.Println("find session error", err)
+				http.Error(w, err.Error(), 500)
+				return
+			}
+			err = SESSIONS.UpdateMainSession(&MainSession, UserOk.Id, user_session_id)
+			cookie := &http.Cookie{
+				Name:     "session",
+				Value:    MainSession.Id,
+				Path:     "/",
+				HttpOnly: true,
+				SameSite: http.SameSiteLaxMode,
+				Secure:   false,
+				MaxAge:   3600 * 24,
+			}
+			http.SetCookie(w, cookie)
+
+		default:
+			MainSession, err := SESSIONS.CreateMainSession(UserOk.Id)
+
+			if err != nil {
+				fmt.Println(err)
+				http.Error(w, err.Error(), 500)
+			}
+			user_session, err := SESSIONS.CreateSession(nil, UserOk.Id)
+			if err != nil {
+				fmt.Println(err)
+				http.Error(w, err.Error(), 500)
+			}
+			err = SESSIONS.UpdateMainSession(&MainSession, UserOk.Id, user_session)
+			if err != nil {
+				fmt.Println(err)
+				http.Error(w, err.Error(), 500)
+			}
+			cookie := &http.Cookie{
+				Name:     "session",
+				Value:    MainSession.Id,
+				Path:     "/",
+				HttpOnly: true,
+				SameSite: http.SameSiteLaxMode,
+				Secure:   false,
+				MaxAge:   3600 * 24,
+			}
+			http.SetCookie(w, cookie)
 		}
-		cookie := &http.Cookie{
-			Name:     "session_id",
-			Value:    session_id,
-			Path:     "/",
-			HttpOnly: true,
-			SameSite: http.SameSiteLaxMode,
-			Secure:   false,
-			MaxAge:   3600 * 24,
-		}
-		http.SetCookie(w, cookie)
+
 		w.WriteHeader(http.StatusOK)
-		w.Header().Set("msg", "login sucessfull")
+		w.Header().Set("user_id", UserOk.Id)
 		w.Write([]byte("session set"))
 
 	}
@@ -108,10 +151,16 @@ func RegisterHandler(CSRF *a.CSRF, db *d.DB, cash *r.Cash, SESSIONS *a.SESSIONS)
 			http.Error(w, err.Error(), 500)
 			return
 		}
+		fmt.Println("register:", Register)
 		UserModel := db.Models["users"].(*m.UserModel)
+		_, err = UserModel.FindOne(context.Background(), map[string]string{"username": Register.Username}, db.DB, time.Duration(db.Timeout))
+		if err != sql.ErrNoRows && err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
 		user_id, err := UserModel.Create(context.Background(), int(db.Timeout), Register, db.DB)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println("sreate user error:", err)
 			http.Error(w, err.Error(), 500)
 			return
 		}

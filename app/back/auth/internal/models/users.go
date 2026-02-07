@@ -79,7 +79,7 @@ func (u *UserModel) Create(ctx context.Context, timeout int, user s.Register, db
 	var c context.CancelFunc
 	var id string
 	if ctx != nil {
-		newctx, c = context.WithTimeout(ctx, time.Duration(timeout))
+		newctx, c = context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
 		defer c()
 	} else {
 		newctx = nil
@@ -89,11 +89,19 @@ func (u *UserModel) Create(ctx context.Context, timeout int, user s.Register, db
 	if err != nil {
 		return id, err
 	}
-	stored_hash := base64.RawURLEncoding.EncodeToString(hash)
-	_, err = db.ExecContext(newctx, "insert into users (username,email,password,created_at) values ($1,$2,$3,$4);",
-		user.Username, user.Email, stored_hash, time.Now())
 	var int_id int
-	err = db.QueryRowContext(newctx, "select id from users where username = $1", user.Username).Scan(&int_id)
+	stored_hash := base64.RawURLEncoding.EncodeToString(hash)
+	err = db.QueryRowContext(
+		newctx,
+		`INSERT INTO users (username, email, pass, created_at)
+			VALUES ($1, $2, $3, $4)
+			RETURNING id`,
+		user.Username,
+		user.Email,
+		stored_hash,
+		time.Now(),
+	).Scan(&int_id)
+
 	if err != nil {
 		return id, err
 
