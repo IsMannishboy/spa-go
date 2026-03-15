@@ -5,7 +5,6 @@ import { useState,useEffect } from "react";
     const [password, setPassword] = useState("");
         const [email, setEmail] = useState("");
 
-    const [token, setCSRF] = useState(""); 
 
      useEffect(() => {
             URL = "http://localhost:80/"
@@ -15,7 +14,7 @@ import { useState,useEffect } from "react";
         })
             .then((res)=>{
             const token = res.headers.get("CSRF");
-            setCSRF(token);
+            
             console.log("csrf fetched:", token);
             })
             
@@ -71,7 +70,7 @@ import { useState,useEffect } from "react";
             />
             <p>Email</p>
             <input
-                type="email"
+                type="text"
                 name="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}

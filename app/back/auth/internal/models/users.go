@@ -30,7 +30,14 @@ func (u *UserModel) FindOne(ctx context.Context, params map[string]string, db *s
 	var User s.User
 	newctx, c := context.WithTimeout(ctx, timeout*time.Second)
 	defer c()
-	err := db.QueryRowContext(newctx, query).Scan(&User)
+	err := db.QueryRowContext(newctx, query).Scan(
+		&User.Id,
+		&User.Username,
+		&User.Email,
+		&User.Password,
+		&User.CreatedAt,
+	)
+
 	if err != nil {
 		fmt.Println(err)
 		fmt.Println(err.Error() == sql.ErrNoRows.Error())

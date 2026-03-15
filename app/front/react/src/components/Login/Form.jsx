@@ -3,7 +3,6 @@ import { useState,useEffect } from "react";
  function Form() {
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
-    const [token, setCSRF] = useState(""); 
 
      useEffect(() => {
             URL = "http://localhost:80/"
@@ -13,13 +12,12 @@ import { useState,useEffect } from "react";
         })
             .then((res)=>{
             const token = res.headers.get("CSRF");
-            setCSRF(token);
             console.log("csrf fetched:", token);
             })
             
     }, []); 
     function Submit(e) {
-            URL = "http://localhost:80/"
+        URL = "http://localhost:80/"
 
         e.preventDefault();
 
@@ -32,7 +30,7 @@ import { useState,useEffect } from "react";
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "CSRF": token,
+               
             },
             credentials: "include",
             body: JSON.stringify(data),

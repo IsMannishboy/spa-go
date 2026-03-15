@@ -1,13 +1,14 @@
 package auth
 
 import (
-	structs "auth/internal/structs"
 	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	structs "main/internal/structs"
+	"net/http"
 	"time"
 
 	redis "github.com/redis/go-redis/v9"
@@ -17,6 +18,29 @@ type SESSIONS struct {
 	rdb *redis.Client
 }
 
+func (s *SESSIONS) Checkout(r *http.Request) (structs.Session, error) {
+	var Session structs.Session
+	cookie_session, err := r.Cookie("session")
+	if err != nil {
+		return Session, err
+	}
+	MainSessionId := cookie_session.Value
+	MainSession, err := s.FindMainSession(MainSessionId)
+	if err != nil {
+		return Session, err
+	}
+	user_session, err := s.GetUserSessionId(r.Header.Get("user_id"), MainSession)
+	if err != nil {
+		return Session, err
+	}
+	session_value, err := s.CheckSession(5, user_session)
+	if err != nil {
+		return Session, err
+	}
+	Session.Id = user_session
+	Session.Value = session_value
+	return Session, nil
+}
 func (s *SESSIONS) FindMainSession(session_id string) (structs.MainSession, error) {
 	var MainSessionValue structs.MainSessionValue
 	var MainSession structs.MainSession
@@ -37,16 +61,6 @@ func (s *SESSIONS) FindMainSession(session_id string) (structs.MainSession, erro
 	fmt.Println("main session value:", MainSession.Value)
 	return MainSession, nil
 }
-func (s *SESSIONS) GetUserSessionId(user_id string, MainSession structs.MainSession, r *redis.Client) (string, error) {
-	user_session, ok := MainSession.Value.UserSessions[user_id]
-	if !ok {
-		err := errors.New("session is absent")
-		return "", err
-	}
-	return user_session, nil
-
-}
-
 func (s *SESSIONS) UpdateMainSession(MainSession *structs.MainSession, user_id string, user_session_id string) error {
 	MainSession.Value.UserSessions[user_id] = user_session_id
 	bytes, err := json.Marshal(MainSession.Value)
@@ -114,30 +128,42 @@ func (s *SESSIONS) CreateSession(ctx context.Context, user_id string) (string, e
 	_, err = s.rdb.Set(newctx, session.Id, str_value, time.Minute*30).Result()
 	return session.Id, err
 }
+func (s *SESSIONS) GetUserSessionId(user_id string, MainSession structs.MainSession) (string, error) {
+	user_session, ok := MainSession.Value.UserSessions[user_id]
+	if !ok {
+		err := errors.New("session is absent")
+		return "", err
+	}
+	return user_session, nil
+
+}
+
 func NewStruct(rdb *redis.Client) *SESSIONS {
 	return &SESSIONS{rdb: rdb}
 }
-func (s *SESSIONS) CheckSession(timeout int, session_id string) error {
+func (s *SESSIONS) CheckSession(timeout int, session_id string) (structs.SessionValue, error) {
 	var ctx context.Context = context.Background()
 	var c context.CancelFunc
+	var SessionValue structs.SessionValue
+
 	if timeout > 0 {
 		ctx, c = context.WithTimeout(context.Background(), time.Duration(timeout*int(time.Second)))
 		defer c()
 	}
 	stored, err := s.rdb.Get(ctx, session_id).Result()
 	if err != nil {
-		return err
+		return SessionValue, err
 	}
-	var SessionValue structs.SessionValue
 	err = json.Unmarshal([]byte(stored), &SessionValue)
 	if err != nil {
-		return err
+		return SessionValue, err
 	}
 	if time.Now().After(SessionValue.Exp) {
-		return errors.New("session expired")
+		return SessionValue, errors.New("session expired")
 	}
-	return nil
+	return SessionValue, nil
 }
+
 func (s *SESSIONS) DeleteSession(session_id string) {
 
 }

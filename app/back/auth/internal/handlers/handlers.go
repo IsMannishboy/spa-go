@@ -65,62 +65,23 @@ func LoginHandler(CSRF *a.CSRF, db *d.DB, cash *r.Cash, SESSIONS *a.SESSIONS) ht
 		}
 
 		session_cookie, err := r.Cookie("session")
-		switch err {
-		case nil:
-			session_id := session_cookie.Value
-			MainSession, err := SESSIONS.FindMainSession(session_id)
-			if err != nil {
-				fmt.Println("find session error", err)
-				http.Error(w, err.Error(), 500)
-				return
-			}
-			user_session_id, err := SESSIONS.CreateSession(nil, UserOk.Id)
-			if err != nil {
-				fmt.Println("find session error", err)
-				http.Error(w, err.Error(), 500)
-				return
-			}
-			err = SESSIONS.UpdateMainSession(&MainSession, UserOk.Id, user_session_id)
-			cookie := &http.Cookie{
-				Name:     "session",
-				Value:    MainSession.Id,
-				Path:     "/",
-				HttpOnly: true,
-				SameSite: http.SameSiteLaxMode,
-				Secure:   false,
-				MaxAge:   3600 * 24,
-			}
-			http.SetCookie(w, cookie)
-
-		default:
-			MainSession, err := SESSIONS.CreateMainSession(UserOk.Id)
-
-			if err != nil {
-				fmt.Println(err)
-				http.Error(w, err.Error(), 500)
-			}
-			user_session, err := SESSIONS.CreateSession(nil, UserOk.Id)
-			if err != nil {
-				fmt.Println(err)
-				http.Error(w, err.Error(), 500)
-			}
-			err = SESSIONS.UpdateMainSession(&MainSession, UserOk.Id, user_session)
-			if err != nil {
-				fmt.Println(err)
-				http.Error(w, err.Error(), 500)
-			}
-			cookie := &http.Cookie{
-				Name:     "session",
-				Value:    MainSession.Id,
-				Path:     "/",
-				HttpOnly: true,
-				SameSite: http.SameSiteLaxMode,
-				Secure:   false,
-				MaxAge:   3600 * 24,
-			}
-			http.SetCookie(w, cookie)
+		session_id, err := MainSessionFunc(err, SESSIONS, UserOk.Id, session_cookie)
+		if err != nil {
+			fmt.Println("MainSessionFunc error:", err)
+			http.Error(w, err.Error(), 500)
+			return
 		}
-
+		fmt.Println("New Main session :", session_id)
+		cookie := &http.Cookie{
+			Name:     "session",
+			Value:    session_id,
+			Path:     "/",
+			HttpOnly: true,
+			SameSite: http.SameSiteLaxMode,
+			Secure:   false,
+			MaxAge:   3600 * 24,
+		}
+		http.SetCookie(w, cookie)
 		w.WriteHeader(http.StatusOK)
 		w.Header().Set("user_id", UserOk.Id)
 		w.Write([]byte("session set"))
@@ -158,30 +119,89 @@ func RegisterHandler(CSRF *a.CSRF, db *d.DB, cash *r.Cash, SESSIONS *a.SESSIONS)
 			http.Error(w, err.Error(), 500)
 			return
 		}
+		if err == nil {
+			http.Error(w, "this username already is used", 403)
+			return
+		}
 		user_id, err := UserModel.Create(context.Background(), int(db.Timeout), Register, db.DB)
 		if err != nil {
 			fmt.Println("sreate user error:", err)
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		session_id, err := SESSIONS.CreateSession(context.Background(), user_id)
+		session_cookie, err := r.Cookie("session")
+		session_id, err := MainSessionFunc(err, SESSIONS, user_id, session_cookie)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println("MainSessionFunc error:", err)
 			http.Error(w, err.Error(), 500)
 			return
 		}
+		fmt.Println("New Main session :", session_id)
+
 		cookie := &http.Cookie{
-			Name:     "session_id",
+			Name:     "session",
 			Value:    session_id,
 			Path:     "/",
-			Secure:   false,
 			HttpOnly: true,
 			SameSite: http.SameSiteLaxMode,
+			Secure:   false,
 			MaxAge:   3600 * 24,
 		}
 		http.SetCookie(w, cookie)
-		w.Header().Set("msg", "registration sucessfull")
+		w.WriteHeader(http.StatusOK)
+		w.Header().Set("user_id", user_id)
 		w.Write([]byte("session set"))
+	}
+}
+func MainSessionFunc(err error, SESSIONS *a.SESSIONS, user_id string, session_cookie *http.Cookie) (string, error) {
+	var session_id string
+	switch err {
+	case nil:
+
+		session_id = session_cookie.Value
+		fmt.Println("session from cookie:", session_id)
+		MainSession, err := SESSIONS.FindMainSession(session_id)
+		if err != nil {
+			fmt.Println("find session error", err)
+
+			return session_id, err
+		}
+		fmt.Println("FindMainSession MainSession.ID:", MainSession.Id)
+		user_session_id, err := SESSIONS.CreateSession(nil, user_id)
+		if err != nil {
+			fmt.Println("create user session error", err)
+
+			return session_id, err
+		}
+		err = SESSIONS.UpdateMainSession(&MainSession, user_id, user_session_id)
+		fmt.Println("Main SESSION VALUE:", MainSession.Value)
+		return session_id, nil
+
+	default:
+		fmt.Println("session is absent(")
+		MainSession, err := SESSIONS.CreateMainSession(user_id)
+
+		if err != nil {
+			fmt.Println("create CreateMainSession session error", err)
+
+			return session_id, err
+		}
+
+		fmt.Println(" CreateMainSession MainSession.ID:", MainSession.Id)
+		user_session, err := SESSIONS.CreateSession(nil, user_id)
+		if err != nil {
+			fmt.Println("create  session error", err)
+
+			return session_id, err
+		}
+		err = SESSIONS.UpdateMainSession(&MainSession, user_id, user_session)
+		if err != nil {
+			fmt.Println("create CreateMainSession session error", err)
+
+			return session_id, err
+		}
+		fmt.Println("Main SESSION VALUE:", MainSession.Value)
+		return MainSession.Id, nil
 
 	}
 }
@@ -203,7 +223,16 @@ func GetCSRF(CSRF *a.CSRF) http.HandlerFunc {
 			SameSite: http.SameSiteStrictMode,
 			Path:     "/",
 		}
+		token_cookie := &http.Cookie{
+			Name:     "CSRF",
+			Value:    key,
+			Secure:   false,
+			HttpOnly: true,
+			SameSite: http.SameSiteStrictMode,
+			Path:     "/",
+		}
 		http.SetCookie(w, cookie)
+		http.SetCookie(w, token_cookie)
 		w.Header().Set("CSRF", token)
 		w.Write([]byte("take your token"))
 	}
